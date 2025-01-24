@@ -151,6 +151,7 @@ class AsyncImagePainter internal constructor(
     private var alpha: Float = DefaultAlpha
     private var colorFilter: ColorFilter? = null
 
+    private var isRemembered = false
     private var rememberJob: Job? = null
         set(value) {
             field?.cancel()
@@ -168,7 +169,6 @@ class AsyncImagePainter internal constructor(
     internal var contentScale = ContentScale.Fit
     internal var filterQuality = DefaultFilterQuality
     internal var previewHandler: AsyncImagePreviewHandler? = null
-    private var isRemembered = false
 
     internal var _input: Input? = input
         set(value) {
