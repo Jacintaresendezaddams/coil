@@ -26,8 +26,7 @@ import coil3.compose.AsyncImagePainter.Companion.DefaultTransform
 import coil3.compose.AsyncImagePainter.Input
 import coil3.compose.AsyncImagePainter.State
 import coil3.compose.internal.AsyncImageState
-import coil3.compose.internal.DeferredDispatchCoroutineScope
-import coil3.compose.internal.launchUndispatched
+import coil3.compose.internal.launchWithDeferredDispatch
 import coil3.compose.internal.onStateOf
 import coil3.compose.internal.previewHandler
 import coil3.compose.internal.requestOf
@@ -148,10 +147,6 @@ private fun rememberAsyncImagePainter(
 class AsyncImagePainter internal constructor(
     input: Input,
 ) : Painter(), RememberObserver {
-    private val drawSize = MutableSharedFlow<Size>(
-        replay = 1,
-        onBufferOverflow = DROP_OLDEST,
-    )
     private var painter: Painter? by mutableStateOf(null)
     private var alpha: Float = DefaultAlpha
     private var colorFilter: ColorFilter? = null
@@ -161,6 +156,11 @@ class AsyncImagePainter internal constructor(
             field?.cancel()
             field = value
         }
+
+    private val drawSize = MutableSharedFlow<Size>(
+        replay = 1,
+        onBufferOverflow = DROP_OLDEST,
+    )
 
     internal lateinit var scope: CoroutineScope
     internal var transform = DefaultTransform
@@ -186,8 +186,8 @@ class AsyncImagePainter internal constructor(
     val input: StateFlow<Input> = inputFlow.asStateFlow()
 
     /** The latest [AsyncImagePainter.State]. */
-    private val _state: MutableStateFlow<State> = MutableStateFlow(State.Empty)
-    val state: StateFlow<State> = _state.asStateFlow()
+    private val stateFlow: MutableStateFlow<State> = MutableStateFlow(State.Empty)
+    val state: StateFlow<State> = stateFlow.asStateFlow()
 
     override val intrinsicSize: Size
         get() = painter?.intrinsicSize ?: Size.Unspecified
@@ -218,8 +218,8 @@ class AsyncImagePainter internal constructor(
 
     private fun launchJob() {
         val input = _input ?: return
-        // Observe the latest request and execute any emissions.
-        rememberJob = DeferredDispatchCoroutineScope(scope.coroutineContext).launchUndispatched {
+
+        rememberJob = scope.launchWithDeferredDispatch {
             val previewHandler = previewHandler
             val state = if (previewHandler != null) {
                 // If we're in inspection mode use the preview renderer.
@@ -296,9 +296,9 @@ class AsyncImagePainter internal constructor(
     }
 
     private fun updateState(state: State) {
-        val previous = _state.value
+        val previous = stateFlow.value
         val current = transform(state)
-        _state.value = current
+        stateFlow.value = current
         painter = maybeNewCrossfadePainter(previous, current, contentScale) ?: current.painter
 
         // Manually forget and remember the old/new painters.
